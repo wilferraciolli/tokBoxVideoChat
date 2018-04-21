@@ -2,40 +2,57 @@
  * (c) Midland Software Limited 2018
  * Name     : TokBoxSessionAppServer.java
  * Author   : ferraciolliw
- * Date     : 06 Apr 2018
+ * Date     : 16 Apr 2018
  */
-package com.wiltech.tokBox.service;
+package com.wiltech.tokBox.tokbox;
 
 import java.net.Authenticator;
+import java.net.InetSocketAddress;
 import java.net.PasswordAuthentication;
+import java.net.Proxy;
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.X509Certificate;
+
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSession;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 
 import com.opentok.MediaMode;
 import com.opentok.OpenTok;
-import com.opentok.Role;
 import com.opentok.Session;
 import com.opentok.SessionProperties;
-import com.opentok.TokenOptions;
 import com.opentok.exception.OpenTokException;
+import com.opentok.util.HttpClient;
 
 /**
- * The type Tok box session app server.
+ *
  */
 public class TokBoxSessionAppServer {
-
     private static final int apiKey = 46095662;
     private static final String apiSecret = "52108e5c1542bf80ef1c40cf6cf533c1206160f2";
 
-    public static void main(String[] args) {
-        //    public String test() {
-        //setProxyDetails();
+    static{
+        setProxyDetails();
+        disableSslVerification();
+    }
+
+    public String test() {
 
         //Build TokBox
-        final OpenTok opentok = new OpenTok(apiKey, apiSecret);
+       // final OpenTok opentok = new OpenTok(apiKey, apiSecret);
+        OpenTok.Builder builder = new OpenTok.Builder(apiKey, apiSecret);
+        Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress("proxy1.eu.webscanningservice.com", 3128));
+        OpenTok opentok = builder.proxy(proxy, HttpClient.ProxyAuthScheme.BASIC, "proxy", "TestProxy").build();
 
         final Session session;
         String sessionId = "faileddddddddddddddddddddddddddddddddddddddddddddddddddddddd";
 
         try {
+            System.out.println("Starting................................");
             //Create the session properties to allow archiving
             SessionProperties sessionProperties = new SessionProperties.Builder()
                     .mediaMode(MediaMode.ROUTED)
@@ -46,7 +63,9 @@ public class TokBoxSessionAppServer {
             sessionId = session.getSessionId();
 
             // Generate a token from just a sessionId (fetched from a database)
-            String tokenFromSessionId = opentok.generateToken(sessionId);
+            String token1 = opentok.generateToken(sessionId);
+            String token2 = opentok.generateToken(sessionId);
+            String token3 = opentok.generateToken(sessionId);
             // Generate a token by calling the method on the Session (returned from createSession)
             //            String tokenFromSession = session.generateToken();
 
@@ -56,6 +75,10 @@ public class TokBoxSessionAppServer {
             //                    .expireTime((System.currentTimeMillis() / 1000L) + (7 * 24 * 60 * 60)) // in one week
             //                    .data("name=Johnny")
             //                    .build());
+            System.out.println(sessionId);
+            System.out.println("Token 1 = " + token1);
+            System.out.println("Token 2 = " + token2);
+            System.out.println("Token 3 = " + token3);
 
         } catch (OpenTokException e) {
             System.out.println(e.getCause());
@@ -63,9 +86,10 @@ public class TokBoxSessionAppServer {
         }
         // }
 
-        //  return sessionId;
+        return sessionId;
     }
 
+    //  return sessionId;
     private static void setProxyDetails() {
         // set the wildfly system properties values
         System.setProperty("http.proxyHost", "msl-svr135");
@@ -83,6 +107,42 @@ public class TokBoxSessionAppServer {
         // Authenticator
         // .setDefault(new ProxyAuthenticator(System.getProperty("http.proxyUser"),
         // System.getProperty("http.proxyUser")));
+    }
+
+    private static void disableSslVerification() {
+        try {
+            // Create a trust manager that does not validate certificate chains
+            final TrustManager[] trustAllCerts = new TrustManager[] {new X509TrustManager() {
+                public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+                    return null;
+                }
+
+                public void checkClientTrusted(final X509Certificate[] certs, final String authType) {
+                }
+
+                public void checkServerTrusted(final X509Certificate[] certs, final String authType) {
+                }
+            } };
+
+            // Install the all-trusting trust manager
+            final SSLContext sc = SSLContext.getInstance("SSL");
+            sc.init(null, trustAllCerts, new java.security.SecureRandom());
+            HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+
+            // Create all-trusting host name verifier
+            final HostnameVerifier allHostsValid = new HostnameVerifier() {
+                public boolean verify(final String hostname, final SSLSession session) {
+                    return true;
+                }
+            };
+
+            // Install the all-trusting host verifier
+            HttpsURLConnection.setDefaultHostnameVerifier(allHostsValid);
+        } catch (final NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        } catch (final KeyManagementException e) {
+            e.printStackTrace();
+        }
     }
 
 }
@@ -106,4 +166,5 @@ class ProxyAuthenticator extends Authenticator {
     protected PasswordAuthentication getPasswordAuthentication() {
         return new PasswordAuthentication(user, password.toCharArray());
     }
+
 }
